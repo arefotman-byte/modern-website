@@ -28,3 +28,4 @@ yarn-error.log*
 # agent shop runtime data
 /data/*.json
 .env
+*.tsbuildinfo
