@@ -89,8 +89,8 @@ export const mockSupplier: SupplierAdapter = {
     const age = (Date.now() - ts) / 1000;
     const trackingNumber = `TRK${supplierOrderId.slice(-6).toUpperCase()}${String(ts).slice(-4)}`;
     if (age < 20) return { supplierOrderId, status: 'processing' };
-    if (age < 60) return { supplierOrderId, status: 'shipped', trackingNumber };
-    return { supplierOrderId, status: 'delivered', trackingNumber };
+    if (age < 60) return { supplierOrderId, status: 'shipped', trackingNumber, carrier: 'USPS' };
+    return { supplierOrderId, status: 'delivered', trackingNumber, carrier: 'USPS' };
   },
 };
 

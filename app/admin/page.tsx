@@ -6,13 +6,14 @@ import type { AgentName, AgentRun, Candidate, DB, SupplierProduct } from '@/lib/
 type State = Omit<DB, 'candidates'> & {
   candidates: (Candidate & { product: SupplierProduct | null })[];
   mode: 'live' | 'simulate';
+  channels: { name: string; label: string; dryRun: boolean }[];
   config: Record<string, unknown>;
 };
 
 const AGENT_INFO: Record<AgentName, { title: string; text: string }> = {
   research: { title: '1 · Research', text: 'Searches the web for trends and shortlists supplier products with real demand.' },
-  listing: { title: '2 · Listing', text: 'Writes product pages and prices approved products within your margin rules.' },
-  fulfillment: { title: '3 · Fulfillment', text: 'Orders from the supplier, tracks shipments and emails customers.' },
+  listing: { title: '2 · Listing', text: 'Writes product pages, prices them after fees, and publishes to your store and marketplaces.' },
+  fulfillment: { title: '3 · Fulfillment', text: 'Imports marketplace sales, orders from the supplier, uploads tracking and emails store customers.' },
 };
 
 const card = 'rounded-2xl border border-white/10 bg-white/5 p-5';
@@ -61,6 +62,13 @@ export default function Admin() {
             <span className={state.mode === 'live' ? 'text-emerald-400' : 'text-amber-400'}>
               {state.mode === 'live' ? 'live (Claude API)' : 'simulate (no API key set)'}
             </span>
+            {' · '}Selling on:{' '}
+            {state.channels.map((c) => (
+              <span key={c.name} className="mr-2">
+                {c.label}
+                {c.dryRun && <span className="text-amber-400"> (dry run)</span>}
+              </span>
+            ))}
           </p>
         </div>
         <div className="flex gap-6 text-sm">
@@ -136,6 +144,48 @@ export default function Admin() {
       </section>
 
       <section className={card}>
+        <h2 className="mb-3 font-semibold">Listings</h2>
+        {state.listings.length === 0 && <Empty>Approve products, then run the listing agent.</Empty>}
+        <div className="divide-y divide-white/10">
+          {state.listings.map((l) => (
+            <div key={l.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+              <span className="text-2xl">{l.image}</span>
+              <div className="min-w-[200px] flex-1">
+                <a href={`/product/${l.id}`} className="font-medium hover:text-accent">
+                  {l.title}
+                </a>
+                <p className="text-xs text-slate-500">
+                  Store ${l.price.toFixed(2)} · landed cost ${l.cost.toFixed(2)}
+                </p>
+              </div>
+              {(l.channels ?? []).map((c) => (
+                <span key={c.channel} className="flex items-center gap-2">
+                  <a
+                    href={c.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full bg-sky-500/20 px-2.5 py-0.5 text-xs text-sky-300"
+                    title={c.externalId}
+                  >
+                    {c.channel} ${c.price.toFixed(2)} × {c.quantity}
+                    {c.dryRun ? ' · dry run' : ''}
+                  </a>
+                  {c.dryRun && (
+                    <button
+                      onClick={() => post('/api/dev/channel-order', { listingId: l.id, channel: c.channel })}
+                      className={`${btn} bg-white/10 text-xs`}
+                    >
+                      Simulate {c.channel} sale
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={card}>
         <h2 className="mb-3 font-semibold">Orders</h2>
         {state.orders.length === 0 && <Empty>No orders yet. Buy something from the storefront to test fulfillment.</Empty>}
         <div className="overflow-x-auto">
@@ -143,10 +193,13 @@ export default function Admin() {
             <tbody className="divide-y divide-white/10">
               {state.orders.map((o) => (
                 <tr key={o.id} className="align-top">
-                  <td className="py-2 pr-4 font-mono text-xs">{o.id}</td>
+                  <td className="py-2 pr-4 font-mono text-xs">
+                    {o.id}
+                    <div className="mt-1 font-sans text-slate-400">{o.channel ?? 'store'}</div>
+                  </td>
                   <td className="py-2 pr-4">
                     {state.listings.find((l) => l.id === o.listingId)?.title} × {o.quantity}
-                    <div className="text-xs text-slate-500">{o.customer.email}</div>
+                    <div className="text-xs text-slate-500">{o.customer.email || o.customer.address}</div>
                     {o.notes.length > 0 && <div className="text-xs text-slate-500">{o.notes[o.notes.length - 1]}</div>}
                   </td>
                   <td className="py-2 pr-4">${o.total.toFixed(2)}</td>

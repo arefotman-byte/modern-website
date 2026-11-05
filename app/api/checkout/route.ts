@@ -26,6 +26,7 @@ export async function POST(req: Request) {
       if (!listing) throw new Error('Product not available');
       const o: Order = {
         id: newId('ord'),
+        channel: 'store',
         listingId: listing.id,
         quantity,
         customer: { name, email, address },

@@ -1,5 +1,8 @@
 export type AgentName = 'research' | 'listing' | 'fulfillment';
 
+/** Where a product is sold. 'store' is our own storefront. */
+export type ChannelName = 'store' | 'ebay';
+
 /** A product as offered by a supplier (wholesale side). */
 export interface SupplierProduct {
   id: string;
@@ -14,6 +17,7 @@ export interface SupplierProduct {
   rating: number; // supplier listing rating 0-5
   ordersLast30d: number; // sales velocity signal from the supplier platform
   image: string; // emoji placeholder used by the storefront
+  images?: string[]; // real photo URLs (required by marketplaces such as eBay)
 }
 
 export type CandidateStatus = 'pending_review' | 'approved' | 'rejected' | 'listed';
@@ -43,6 +47,18 @@ export interface Listing {
   image: string;
   active: boolean;
   createdAt: string;
+  /** Marketplace copies of this listing (eBay etc.). */
+  channels?: ChannelListing[];
+}
+
+export interface ChannelListing {
+  channel: ChannelName;
+  externalId: string; // e.g. eBay listing id
+  url?: string;
+  price: number;
+  quantity: number;
+  dryRun: boolean; // true = not really on the marketplace
+  publishedAt: string;
 }
 
 export type OrderStatus =
@@ -55,6 +71,11 @@ export type OrderStatus =
 
 export interface Order {
   id: string;
+  /** Where the sale happened. Missing on older orders = 'store'. */
+  channel?: ChannelName;
+  externalOrderId?: string; // marketplace order id
+  channelLineItemId?: string;
+  trackingPushed?: boolean; // tracking uploaded to the marketplace
   listingId: string;
   quantity: number;
   customer: { name: string; email: string; address: string };
@@ -101,4 +122,6 @@ export interface DB {
   orders: Order[];
   outbox: OutboxEmail[];
   runs: AgentRun[];
+  /** Fake marketplace orders waiting to be imported (dry-run testing only). */
+  channelInbox?: { channel: ChannelName; listingId: string; quantity: number; buyer: Order['customer']; createdAt: string }[];
 }

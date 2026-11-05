@@ -19,10 +19,13 @@ export const shopConfig = {
   autoApproveMinScore: 70,
 
   // --- Listing ---
-  /** Price must be at least landed cost * (1 + minMargin). */
+  /** After channel fees, we must earn at least landed cost * (1 + minMargin). */
   minMargin: 0.35,
   /** And at most landed cost * (1 + maxMargin), to stay competitive. */
   maxMargin: 2.5,
+
+  /** Units listed on marketplaces at a time (limits overselling if the supplier runs out). */
+  marketplaceListQuantity: 3,
 
   // --- Fulfillment ---
   /** Run the fulfillment agent automatically after each checkout. */

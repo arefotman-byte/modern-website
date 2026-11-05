@@ -87,9 +87,14 @@ export async function runAgent(def: AgentDefinition): Promise<AgentRun> {
     const tool = toolsByName.get(name);
     if (!tool) throw new Error(`Unknown tool ${name}`);
     log('tool_call', `${name}(${short(input, 400)})`);
-    const result = await tool.run(input);
-    log('tool_result', short(result));
-    return result;
+    try {
+      const result = await tool.run(input);
+      log('tool_result', short(result));
+      return result;
+    } catch (err) {
+      log('error', `${name}: ${err instanceof Error ? err.message : String(err)}`);
+      throw err;
+    }
   };
 
   try {
@@ -169,7 +174,6 @@ async function liveLoop(
           return { type: 'tool_result' as const, tool_use_id: tu.id, content: JSON.stringify(out) };
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          log('error', `${tu.name}: ${message}`);
           return { type: 'tool_result' as const, tool_use_id: tu.id, content: message, is_error: true };
         }
       }),

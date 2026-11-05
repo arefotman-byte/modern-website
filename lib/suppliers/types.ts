@@ -11,6 +11,7 @@ export interface SupplierOrderStatus {
   supplierOrderId: string;
   status: 'processing' | 'shipped' | 'delivered' | 'cancelled';
   trackingNumber?: string;
+  carrier?: string; // e.g. USPS, UPS, YunExpress
 }
 
 /**
