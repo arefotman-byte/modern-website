@@ -24,3 +24,7 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# agent shop runtime data
+/data/*.json
+.env
