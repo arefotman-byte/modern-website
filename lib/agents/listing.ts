@@ -11,6 +11,10 @@ const range = (ch: Parameters<typeof priceRange>[0], cost: number) =>
   priceRange(ch, cost, shopConfig.minMargin, shopConfig.maxMargin);
 
 const marketplaces = () => enabledChannels().filter((c) => c.name !== 'store');
+const channelSchema = () => {
+  const names = marketplaces().map((m) => m.name);
+  return names.length ? { type: 'string', enum: names } : { type: 'string' };
+};
 
 const listApproved: LocalTool = {
   name: 'list_approved_candidates',
@@ -128,11 +132,12 @@ const listMissingChannels: LocalTool = {
 
 const findCategory: LocalTool = {
   name: 'find_channel_category',
-  description: 'Get the marketplace category suggestions for a product (needed before publishing to eBay).',
+  description:
+    'Get category suggestions for a product on a marketplace (eBay category id, Amazon product type, Walmart product type, TikTok Shop category id). Needed before publish_to_channel.',
   input_schema: {
     type: 'object',
     properties: {
-      channel: { type: 'string', enum: ['ebay'] },
+      channel: channelSchema(),
       query: { type: 'string', description: 'Short product description, e.g. "car phone mount magnetic"' },
     },
     required: ['channel', 'query'],
@@ -146,18 +151,18 @@ const findCategory: LocalTool = {
 const publishToChannel: LocalTool = {
   name: 'publish_to_channel',
   description:
-    'Publish an existing storefront listing to a marketplace. Price must be inside that channel\'s allowedPriceRange. If the marketplace rejects it (for example missing item specifics such as Brand or Type), read the error and retry with the missing aspects. Use "Unbranded" for Brand.',
+    'Publish an existing storefront listing to a marketplace. Price must be inside that channel\'s allowedPriceRange. aspects are the marketplace\'s product attributes (eBay item specifics such as Type; Amazon snake_case attributes such as material or color; TikTok/Walmart attribute names). If the marketplace rejects the listing (e.g. a missing required attribute), read the error and retry with it. Brand is always "Unbranded".',
   input_schema: {
     type: 'object',
     properties: {
       listing_id: { type: 'string' },
-      channel: { type: 'string', enum: ['ebay'] },
-      title: { type: 'string', description: 'Marketplace title, keyword-rich, within maxTitleLength' },
+      channel: channelSchema(),
+      title: { type: 'string', description: 'Marketplace-style title, keyword-rich, within maxTitleLength' },
       price: { type: 'number' },
       category_id: { type: 'string' },
       aspects: {
         type: 'array',
-        description: 'Item specifics, e.g. [{"name":"Brand","value":"Unbranded"},{"name":"Type","value":"Vent Mount"}]',
+        description: 'Product attributes, e.g. [{"name":"Brand","value":"Unbranded"},{"name":"Type","value":"Vent Mount"}]',
         items: {
           type: 'object',
           properties: { name: { type: 'string' }, value: { type: 'string' } },
@@ -228,7 +233,7 @@ export const listingAgent = (): AgentDefinition => ({
     .join(', ') || 'none enabled'}).
 
 Step 1: for every approved candidate (list_approved_candidates), write a listing that converts without overpromising and publish it to our storefront with publish_listing.
-Step 2: for every listing in list_listings_missing_channels, publish it to each missing marketplace: find_channel_category, pick the most specific matching category, then publish_to_channel with a marketplace-style keyword title and item specifics (always include Brand: Unbranded).
+Step 2: for every listing in list_listings_missing_channels, publish it to each missing marketplace: find_channel_category, pick the most specific matching category, then publish_to_channel with a title written for that marketplace's shoppers and its product attributes (always include Brand: Unbranded). Marketplaces that require photos or a barcode (GTIN) will refuse products without them; report those rather than retrying.
 
 Copy rules: plain, benefit-led language; no brand names or trademarks; no medical, safety or performance claims the supplier description does not support; mention realistic shipping (supplier ships in roughly 7-14 days).
 Pricing: stay inside each channel's allowedPriceRange (it already accounts for that channel's fees); impulse items usually sell at 2-3x landed cost. Marketplace prices may be higher than the storefront price to cover fees.

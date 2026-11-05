@@ -1,7 +1,7 @@
 export type AgentName = 'research' | 'listing' | 'fulfillment';
 
 /** Where a product is sold. 'store' is our own storefront. */
-export type ChannelName = 'store' | 'ebay';
+export type ChannelName = 'store' | 'ebay' | 'amazon' | 'walmart' | 'tiktok';
 
 /** A product as offered by a supplier (wholesale side). */
 export interface SupplierProduct {
@@ -18,6 +18,8 @@ export interface SupplierProduct {
   ordersLast30d: number; // sales velocity signal from the supplier platform
   image: string; // emoji placeholder used by the storefront
   images?: string[]; // real photo URLs (required by marketplaces such as eBay)
+  gtin?: string; // UPC/EAN barcode (required by Walmart, and Amazon unless exempt)
+  weightLb?: number; // shipping weight
 }
 
 export type CandidateStatus = 'pending_review' | 'approved' | 'rejected' | 'listed';

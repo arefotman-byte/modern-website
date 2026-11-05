@@ -1,5 +1,4 @@
-import crypto from 'crypto';
-import { updateDb } from '../db';
+import { aspectsToRecord, descriptionHtml, drainInbox, dryRunId } from './shared';
 import type { ChannelAdapter, ChannelOrder } from './types';
 
 /**
@@ -110,7 +109,7 @@ export const ebayChannel: ChannelAdapter = {
   },
 
   async publish({ sku, listing, product, title, price, quantity, categoryId, aspects }) {
-    if (isDryRun()) return { externalId: `DRYRUN-${crypto.randomBytes(4).toString('hex')}` };
+    if (isDryRun()) return { externalId: dryRunId() };
 
     const e = env();
     const images = product.images ?? [];
@@ -119,16 +118,13 @@ export const ebayChannel: ChannelAdapter = {
     const missing = Object.entries({ ...e.policies, locationKey: e.locationKey }).filter(([, v]) => !v).map(([k]) => k);
     if (missing.length) throw new Error(`eBay setup incomplete, missing env: ${missing.join(', ')}`);
 
-    const itemAspects: Record<string, string[]> = {};
-    for (const a of aspects) (itemAspects[a.name] ??= []).push(a.value);
-    const descriptionHtml = `<p>${escapeHtml(listing.description).replace(/\n\n/g, '</p><p>')}</p><ul>${listing.bullets
-      .map((b) => `<li>${escapeHtml(b)}</li>`)
-      .join('')}</ul>`;
+    const itemAspects = aspectsToRecord(aspects);
+    const html = descriptionHtml(listing.description, listing.bullets);
 
     await ebay('PUT', `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`, {
       availability: { shipToLocationAvailability: { quantity } },
       condition: 'NEW',
-      product: { title, description: descriptionHtml, imageUrls: images.slice(0, 12), aspects: itemAspects },
+      product: { title, description: html, imageUrls: images.slice(0, 12), aspects: itemAspects },
     });
     const offer = await ebay<{ offerId: string }>('POST', '/sell/inventory/v1/offer', {
       sku,
@@ -136,7 +132,7 @@ export const ebayChannel: ChannelAdapter = {
       format: 'FIXED_PRICE',
       availableQuantity: quantity,
       categoryId,
-      listingDescription: descriptionHtml,
+      listingDescription: html,
       listingPolicies: e.policies,
       merchantLocationKey: e.locationKey,
       pricingSummary: { price: { value: price.toFixed(2), currency: e.currency } },
@@ -146,27 +142,7 @@ export const ebayChannel: ChannelAdapter = {
   },
 
   async fetchNewOrders() {
-    if (isDryRun()) {
-      // Turn simulated sales into eBay-shaped orders.
-      return updateDb((db) => {
-        const inbox = (db.channelInbox ?? []).filter((x) => x.channel === 'ebay');
-        db.channelInbox = (db.channelInbox ?? []).filter((x) => x.channel !== 'ebay');
-        return inbox.map((x): ChannelOrder => {
-          const listing = db.listings.find((l) => l.id === x.listingId);
-          const price = listing?.channels?.find((c) => c.channel === 'ebay')?.price ?? listing?.price ?? 0;
-          const id = `DRYRUN-ORDER-${crypto.randomBytes(3).toString('hex')}`;
-          return {
-            channel: 'ebay',
-            externalOrderId: id,
-            lineItemId: `${id}-1`,
-            sku: x.listingId,
-            quantity: x.quantity,
-            total: Math.round(price * x.quantity * 100) / 100,
-            buyer: x.buyer,
-          };
-        });
-      });
-    }
+    if (isDryRun()) return drainInbox('ebay');
 
     type EbayOrder = {
       orderId: string;
@@ -227,7 +203,3 @@ export const ebayChannel: ChannelAdapter = {
     });
   },
 };
-
-function escapeHtml(s: string) {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-}

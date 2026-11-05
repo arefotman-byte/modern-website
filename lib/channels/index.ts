@@ -1,18 +1,24 @@
 import { round2 } from '../suppliers/mock';
 import type { ChannelName } from '../types';
+import { amazonChannel } from './amazon';
 import { ebayChannel } from './ebay';
 import { storeChannel } from './store';
+import { tiktokChannel } from './tiktok';
 import type { ChannelAdapter } from './types';
+import { walmartChannel } from './walmart';
 
 const adapters: Record<ChannelName, ChannelAdapter> = {
   store: storeChannel,
   ebay: ebayChannel,
-  // amazon, etsy, walmart, tiktok: implement ChannelAdapter and add here
+  amazon: amazonChannel,
+  walmart: walmartChannel,
+  tiktok: tiktokChannel,
+  // Etsy is deliberately absent: Etsy prohibits reselling/dropshipping ready-made goods.
 };
 
-/** Channels to sell on, from CHANNELS=store,ebay (default: both). */
+/** Channels to sell on, from CHANNELS=store,ebay,amazon,walmart,tiktok (default: all). */
 export function enabledChannels(): ChannelAdapter[] {
-  const names = (process.env.CHANNELS ?? 'store,ebay').split(',').map((s) => s.trim()) as ChannelName[];
+  const names = (process.env.CHANNELS ?? 'store,ebay,amazon,walmart,tiktok').split(',').map((s) => s.trim()) as ChannelName[];
   return names.filter((n) => adapters[n]).map((n) => adapters[n]);
 }
 
