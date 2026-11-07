@@ -7,6 +7,7 @@ type State = Omit<DB, 'candidates'> & {
   candidates: (Candidate & { product: SupplierProduct | null })[];
   mode: 'live' | 'simulate';
   channels: { name: string; label: string; dryRun: boolean }[];
+  autopilot: { enabled: boolean; researchMinutes: number; listingMinutes: number; fulfillmentMinutes: number };
   config: Record<string, unknown>;
 };
 
@@ -62,6 +63,14 @@ export default function Admin() {
             <span className={state.mode === 'live' ? 'text-emerald-400' : 'text-amber-400'}>
               {state.mode === 'live' ? 'live (Claude API)' : 'simulate (no API key set)'}
             </span>
+            {' · '}Autopilot:{' '}
+            {state.autopilot.enabled ? (
+              <span className="text-emerald-400" title="Research / listing / fulfillment intervals">
+                on ({state.autopilot.researchMinutes / 60}h / {state.autopilot.listingMinutes}m / {state.autopilot.fulfillmentMinutes}m)
+              </span>
+            ) : (
+              <span className="text-slate-500">off</span>
+            )}
             {' · '}Selling on:{' '}
             {state.channels.map((c) => (
               <span key={c.name} className="mr-2">

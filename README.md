@@ -28,6 +28,8 @@ The rules live in `lib/config.ts` and are enforced in the tool code, so the mode
 
 ## Run it
 
+**New to all this? Follow [SETUP.md](SETUP.md).** It starts from an empty computer and covers installing everything, API keys, autopilot and running 24/7.
+
 ```bash
 npm install
 cp .env.example .env.local   # add ANTHROPIC_API_KEY to use real agents
@@ -76,7 +78,7 @@ All three are wired in the same way as eBay (`lib/channels/amazon.ts`, `walmart.
 | Payments | Checkout marks orders paid immediately | Stripe Checkout. Create the order from the payment-succeeded webhook |
 | Email | Outbox stored in the DB | Resend, SendGrid, SES… inside `email_customer` |
 | Database | `data/db.json` | Postgres or SQLite (`lib/db.ts` is the only file to change) |
-| Scheduling | "Run agent" buttons | A cron job calling `POST /api/agents/{research,listing,fulfillment}`, e.g. research daily and fulfillment every 15 minutes |
+| Scheduling | Built-in autopilot (`AUTOPILOT=1`, see `lib/autopilot.ts`) | Keep the server running 24/7 (SETUP.md, Part 6) |
 | Admin access | Open | Set `ADMIN_PASSWORD`. Basic auth then protects `/admin` and the agent APIs |
 
 Before selling for real, check consumer-protection rules in your market: accurate shipping times, returns policy, product safety, and VAT/sales tax.
