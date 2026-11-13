@@ -1,9 +1,10 @@
 # Clipper balisong holder
 
 A butterfly-knife (balisong) style flip case for a Clipper Classic lighter
-(CP11, 74 x 16 mm). Two handles pivot on a carrier that grips the lighter:
-closed, they wrap the whole lighter; flipped open, they form a grip and the
-lighter stands clear to use.
+(CP11, 74 x 16 mm). Two handles pivot on a short cup that grips the base of
+the lighter: closed, they wrap the whole lighter; flipped open, they form a
+grip and the lighter stands clear to use. The handle faces carry an engraved
+contour-line pattern.
 
 ![preview](preview.png)
 
@@ -49,7 +50,10 @@ of `generate.py`, then regenerate:
 
 The script also sweeps a handle through 0–180° and fails if it would touch
 the carrier or the lighter, so parameter changes are checked automatically.
-For a Clipper Mini (CP22) set `LIGHTER_D` and `LIGHTER_L` to its size and
-shorten `SLEEVE_H`.
+The pattern is generated from `PATTERN_SEED`; change it for a different
+pattern, or set `PATTERN = False` for plain handles. If the lighter is loose
+in the cup, lower `FIT` or raise `SLEEVE_H` for a deeper cup.
+
+For a Clipper Mini (CP22) set `LIGHTER_D` and `LIGHTER_L` to its size.
 
 The lighter is exposed while lit; keep the flame away from the printed parts.

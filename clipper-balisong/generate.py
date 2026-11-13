@@ -15,14 +15,15 @@ from pathlib import Path
 
 import numpy as np
 import trimesh
-from manifold3d import CrossSection, Manifold
+import contourpy
+from manifold3d import CrossSection, JoinType, Manifold, OpType
 
 # ----------------------------------------------------------------- parameters
 LIGHTER_D = 16.0       # Clipper Classic (CP11) body diameter - measure yours
 LIGHTER_L = 74.0       # overall lighter length
 FIT = 0.1              # added to the sleeve bore; the slit lets it spring open
 SLEEVE_WALL = 1.8
-SLEEVE_H = 48.0        # how much of the lighter body the sleeve grips
+SLEEVE_H = 22.0        # depth of the cup that grips the lighter base
 SLEEVE_FLOOR = 2.5
 SLIT_W = 3.0           # slit that turns the sleeve into a spring clip
 
@@ -33,7 +34,7 @@ TANG_T = 11.0          # thickness of the pivot tang
 TANG_CLEAR = 0.3       # gap each side between tang and handle cheeks
 TANG_EDGE = 4.2        # tang material around each pivot hole
 SLEEVE_Y = 12.0        # sleeve starts this far above the pivot line
-CHAMFER = 4.0          # chamfer on the outer back edges of the handles
+CHAMFER = 2.0          # chamfer on the outer back edges of the handles
 TIP_R = 3.0            # corner radius at the handle tip
 TIP_BLOCK = 9.5        # solid block past the lighter top (holds magnets)
 
@@ -44,6 +45,12 @@ NUT_AF = 5.8           # M3 nut across flats + clearance
 MAGNET_D = 6.2         # 6 x 3 mm disc magnets (set MAGNETS = False to skip)
 MAGNET_H = 3.2
 MAGNETS = True
+
+PATTERN = True         # engraved contour-line pattern on the handle faces
+PATTERN_SEED = 7       # change for a different pattern
+PATTERN_LINE = 0.6     # groove width
+PATTERN_DEPTH = 0.6
+PATTERN_LEVELS = 9     # number of contour levels (more = denser)
 
 SEG = 96
 OUT = Path(__file__).parent
@@ -107,6 +114,29 @@ def carrier():
     return body
 
 
+def contour_pattern():
+    """Contour lines of a random smooth height field, as a 2D shape in XY."""
+    rng = np.random.default_rng(PATTERN_SEED)
+    xs = np.arange(-1, 2 * PX + 1, 0.35)
+    ys = np.arange(-R_END - 1, HANDLE_L + 1, 0.35)
+    gx, gy = np.meshgrid(xs, ys)
+    field = np.zeros_like(gx)
+    for _ in range(int(HANDLE_L / 4)):
+        cx, cy = rng.uniform(-4, 2 * PX + 4), rng.uniform(-R_END, HANDLE_L)
+        s, amp = rng.uniform(2.5, 6.5), rng.choice([-1, 1]) * rng.uniform(0.6, 1)
+        field += amp * np.exp(-((gx - cx) ** 2 + (gy - cy) ** 2) / (2 * s * s))
+    gen = contourpy.contour_generator(xs, ys, field)
+    dot = CrossSection.circle(PATTERN_LINE / 2, 6)
+    strokes = []
+    for level in np.linspace(field.min(), field.max(), PATTERN_LEVELS + 2)[1:-1]:
+        for line in gen.lines(level):
+            line = line[::2] if len(line) > 4 else line
+            for a, b in zip(line[:-1], line[1:]):
+                strokes.append(CrossSection.batch_hull(
+                    [dot.translate(list(a)), dot.translate(list(b))]))
+    return CrossSection.batch_boolean(strokes, OpType.Add)
+
+
 def handle_right():
     x0, x1 = FACE_GAP, 2 * PX - FACE_GAP
     plan = hull_xy([(PX, 0, R_END),
@@ -130,6 +160,18 @@ def handle_right():
         my = CAV_Y1 + (TIP_BLOCK - TIP_R * 0.3) / 2
         body -= cyl_x(MAGNET_D / 2, x0 - 1, x0 + MAGNET_H, my, 0, 48)
         body -= cyl_x(MAGNET_D / 2, x1 - MAGNET_H, x1 + 1, my, 0, 48)
+    if PATTERN:
+        outline = CrossSection.batch_hull(
+            [CrossSection.circle(R_END, SEG).translate([PX, 0]),
+             CrossSection.circle(TIP_R, SEG).translate([x0 + TIP_R, HANDLE_L - TIP_R]),
+             CrossSection.circle(TIP_R, SEG).translate([x1 - TIP_R, HANDLE_L - TIP_R])])
+        area = outline.offset(-1.2, JoinType.Round)
+        area ^= CrossSection.square([x1 - CHAMFER - 1.0 - (x0 + 1.0), HANDLE_L + 40]
+                                    ).translate([x0 + 1.0, -20])
+        area -= CrossSection.circle(HEAD_D / 2 + 1.6, 48).translate([PX, 0])
+        grooves = Manifold.extrude(contour_pattern() ^ area, PATTERN_DEPTH + 1)
+        body -= grooves.translate([0, 0, HALF_T - PATTERN_DEPTH])
+        body -= grooves.translate([0, 0, -HALF_T - 1])
     return body
 
 
@@ -182,18 +224,21 @@ def preview(car, hr, hl):
     poses = [("Closed", 0, 0), ("Mid-flip", 60, 135), ("Open", 180, 180)]
     for i, (title, a_r, a_l) in enumerate(poses):
         ax = fig.add_subplot(1, 3, i + 1, projection="3d")
-        items = [(car, "#f2c230"), (lighter(), "#d9d9d9"),
-                 (swing(hr, a_r, 1), "#1f6fd0"), (swing(hl, a_l, -1), "#e0483e")]
+        items = [(car, "#9bbf3b"), (lighter(), "#f2c230"),
+                 (swing(hr, a_r, 1), "#7a6fe0"), (swing(hl, a_l, -1), "#7a6fe0")]
         for m, colour in items:
             tm = to_trimesh(m)
             tris = tm.vertices[tm.faces][:, :, [0, 2, 1]]       # Y up on screen
             shade = 0.55 + 0.45 * np.abs(tm.face_normals @ np.array([0.4, 0.5, 0.77]))
             rgb = np.array(matplotlib.colors.to_rgb(colour))
+            # darken the floors of the engraved grooves so the pattern reads
+            cz = np.abs(tm.triangles_center[:, 2])
+            shade[np.abs(cz - (HALF_T - PATTERN_DEPTH)) < 0.05] *= 0.45
             ax.add_collection3d(Poly3DCollection(
                 tris, facecolors=np.clip(shade[:, None] * rgb, 0, 1), edgecolors="none"))
         ax.set_xlim(-110, 110); ax.set_ylim(-65, 65); ax.set_zlim(-110, 110)
         ax.set_box_aspect((220, 130, 220))
-        ax.view_init(elev=18, azim=-62)
+        ax.view_init(elev=12, azim=-72)
         ax.set_axis_off()
         ax.set_title(title, fontsize=15)
     fig.subplots_adjust(left=0, right=1, bottom=0, top=0.94, wspace=-0.1)
